@@ -23,11 +23,19 @@ jobs:
 
       - name: Install cross-compilation dependencies
         run: |
+          # 添加 ARM64 架构支持
           sudo dpkg --add-architecture arm64
-          # 添加 Ubuntu Ports 源（为 arm64 提供软件包）
+
+          # 禁用默认的 security.ubuntu.com 源（它们不提供 arm64 包）
+          sudo sed -i '/security.ubuntu.com/s/^/#/' /etc/apt/sources.list
+
+          # 添加 Ubuntu Ports 源（提供 arm64 软件包）
           echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
           echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+
+          # 更新软件包列表
           sudo apt-get update
+
           # 安装交叉编译工具链和 ARM64 版本的 libpcap 开发库
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
