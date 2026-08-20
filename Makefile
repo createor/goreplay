@@ -35,7 +35,7 @@ release-bin-linux-amd64: vendor
 	docker run --platform linux/amd64 --rm -v `pwd`:$(SOURCE_PATH) -t --env GOOS=linux --env GOARCH=amd64 -i $(CONTAINER_AMD) go build -mod=vendor -o $(BIN_NAME) $(CUSTOM_TAGS) $(LDFLAGS) ./cmd/gor/
 
 release-bin-linux-arm64: vendor
-	docker run --platform linux/arm64 --rm -v `pwd`:$(SOURCE_PATH) -t --env GOOS=linux --env GOARCH=arm64 -i $(CONTAINER_ARM) go build -mod=vendor -o $(BIN_NAME) $(CUSTOM_TAGS) $(LDFLAGS) ./cmd/gor/
+	docker run --platform linux/arm64 --rm -v `pwd`:$(SOURCE_PATH) --env GOOS=linux --env GOARCH=arm64 $(CONTAINER_ARM) go build -mod=vendor -o $(BIN_NAME) $(CUSTOM_TAGS) $(LDFLAGS) ./cmd/gor/
 
 release-bin-mac-amd64: vendor
 	GOOS=darwin go build -mod=vendor -o $(BIN_NAME) $(CUSTOM_TAGS) $(MAC_LDFLAGS) ./cmd/gor/
