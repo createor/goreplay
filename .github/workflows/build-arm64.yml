@@ -1,56 +1,77 @@
-name: Build GoReplay ARM64 with Docker
+name: Build & Release Goreplay (full cgo arm64/amd64 with qemu)
 
 on:
   push:
     tags:
-      - 'v*'               # tag 推送自动发布
-  workflow_dispatch:       # 支持手动触发
-
-permissions:
-  contents: write          # 上传 Release 资产所需
+      - 'v*'
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
+    name: Build ${{ matrix.arch }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux]
+        arch: [amd64, arm64]
+
     steps:
-      - name: Checkout code
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      # 关键：设置 QEMU 以支持 ARM64 容器运行
-      - name: Set up QEMU
+      # 安装qemu，用于arm64 CGO跨编译，替代elastic私有docker镜像
+      - name: Install QEMU for multi‑arch build
         uses: docker/setup-qemu-action@v3
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "DEV")
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Build with Docker (ARM64)
-        run: |
-          docker run --platform linux/arm64 --rm \
-            -v $(pwd):/workspace -w /workspace \
-            -e GOOS=linux -e GOARCH=arm64 \
-            golang:1.21-bullseye \
-            bash -c "
-              apt-get update && \
-              apt-get install -y libpcap-dev && \
-              go build -mod=vendor \
-                -o gor \
-                --tags 'ngo' \
-                -ldflags '-X main.VERSION=${VERSION} -extldflags \"-static\" -X main.DEMO=' \
-                ./cmd/gor/
-            "
-
-      - name: Package binary
-        run: |
-          mkdir -p dist
-          tar -czf dist/gor_linux_arm64.tar.gz gor
-
-      - name: Upload Release Asset
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: dist/gor_linux_arm64.tar.gz
+          platforms: arm64
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21" # 匹配goreplay go.mod版本
+          cache: true
+
+      # 安装libpcap编译依赖（CGO编译必须）
+      - name: Install build deps libpcap
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev flex bison
+
+      - name: Compile gor with CGO (full capture capability)
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 1
+        run: |
+          BIN_NAME="gor‑${{ matrix.goos }}‑${{ matrix.arch }}"
+          # 静态链接libpcap，保证产物不依赖系统库
+          go build -v \
+            -ldflags "-s -w -extldflags '-static'" \
+            -o "${BIN_NAME}" \
+            ./cmd/goreplay
+
+      - name: Package tar.gz
+        run: |
+          BIN_NAME="gor‑${{ matrix.goos }}‑${{ matrix.arch }}"
+          tar -zcvf "${BIN_NAME}.tar.gz" "${BIN_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gor‑${{ matrix.goos }}‑${{ matrix.arch }}
+          path: |
+            gor‑${{ matrix.goos }}‑${{ matrix.arch }}
+            gor‑${{ matrix.goos }}‑${{ matrix.arch }}.tar.gz
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: gor‑${{ matrix.goos }}‑${{ matrix.arch }}.tar.gz
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
