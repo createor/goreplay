@@ -5,7 +5,6 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  # 支持手动触发
   workflow_dispatch:
 
 jobs:
@@ -18,20 +17,17 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21' # 或 goreplay 项目 go.mod 中指定的版本
+        go-version: '1.21'   # 请根据项目 go.mod 实际版本调整
 
-    # GoReplay 依赖 libpcap-dev，编译时需要
     - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y libpcap-dev
 
-    # 交叉编译 ARM64 版本
     - name: Build for Linux ARM64
       run: |
         make release-bin-linux-arm64
 
-    # 上传编译产物作为 Artifact，方便下载
     - name: Upload ARM64 binary
       uses: actions/upload-artifact@v4
       with:
