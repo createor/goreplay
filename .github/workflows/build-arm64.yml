@@ -1,13 +1,13 @@
-name: Build and Release GoReplay for Linux ARM64
+name: Build GoReplay ARM64 with Docker
 
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v*'               # tag 推送自动发布
+  workflow_dispatch:       # 手动触发
 
 permissions:
-  contents: write
+  contents: write          # 上传 Release 资产所需
 
 jobs:
   build:
@@ -16,55 +16,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'       # 请根据 go.mod 调整
-
-      - name: Install cross-compilation dependencies
-        run: |
-          # 添加 ARM64 架构支持
-          sudo dpkg --add-architecture arm64
-
-          # 禁用默认的 security.ubuntu.com 源（它们不提供 arm64 包）
-          sudo sed -i '/security.ubuntu.com/s/^/#/' /etc/apt/sources.list
-
-          # 添加 Ubuntu Ports 源（提供 arm64 软件包）
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-
-          # 更新软件包列表
-          sudo apt-get update
-
-          # 安装交叉编译工具链和 ARM64 版本的 libpcap 开发库
-          sudo apt-get install -y \
-            gcc-aarch64-linux-gnu \
-            libc6-dev-arm64-cross \
-            libpcap-dev:arm64
-
+      # 获取版本号（用于编译时的 VERSION 变量）
       - name: Get version
         id: version
         run: |
           VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "DEV")
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Build for Linux ARM64
+      # 使用 Docker 进行 ARM64 构建
+      - name: Build with Docker (ARM64)
         run: |
-          CC=aarch64-linux-gnu-gcc \
-          CGO_ENABLED=1 \
-          GOOS=linux \
-          GOARCH=arm64 \
-          go build -mod=vendor \
-            -o gor \
-            --tags "ngo" \
-            -ldflags "-X main.VERSION=${VERSION} -extldflags '-static' -X main.DEMO=" \
-            ./cmd/gor/
+          docker run --platform linux/arm64 --rm \
+            -v $(pwd):/workspace -w /workspace \
+            -e GOOS=linux -e GOARCH=arm64 \
+            golang:1.21-bullseye \
+            bash -c "
+              apt-get update && \
+              apt-get install -y libpcap-dev && \
+              go build -mod=vendor \
+                -o gor \
+                --tags 'ngo' \
+                -ldflags '-X main.VERSION=${VERSION} -extldflags \"-static\" -X main.DEMO=' \
+                ./cmd/gor/
+            "
 
+      # 打包
       - name: Package binary
         run: |
           mkdir -p dist
           tar -czf dist/gor_linux_arm64.tar.gz gor
 
+      # 上传到 Release（仅在 tag 推送时）
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
