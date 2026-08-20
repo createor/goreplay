@@ -48,10 +48,22 @@ jobs:
             docker run --rm --platform linux/arm64 \
               -v "${{ github.workspace }}":/work -w /work \
               golang:1.21-bullseye bash -lc "\
-                echo '=== container: checking go version ===' && go version || true && \
-                apt-get update && \
-                apt-get install -y --no-install-recommends libpcap-dev flex bison && \
-                echo '=== container: go version after setup ===' && go version && \
+                set -ex; \
+                echo '=== container: checking go in PATH ==='; \
+                if command -v go >/dev/null 2>&1; then \
+                  echo 'go found:'; go version; \
+                else \
+                  echo 'go not found — installing Go runtime for arm64'; \
+                  apt-get update; \
+                  apt-get install -y --no-install-recommends wget ca-certificates tar; \
+                  GO_TARBALL='https://go.dev/dl/go1.21.linux-arm64.tar.gz'; \
+                  wget -qO /tmp/go.tgz \"${GO_TARBALL}\"; \
+                  tar -C /usr/local -xzf /tmp/go.tgz; \
+                  export PATH=/usr/local/go/bin:$PATH; \
+                  echo 'installed go:'; /usr/local/go/bin/go version; \
+                fi; \
+                apt-get update && apt-get install -y --no-install-recommends libpcap-dev flex bison; \
+                echo '=== container: go version after setup ==='; go version; \
                 CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -v -ldflags '-s -w' -o /work/${BIN_NAME} ./cmd/gor"
             # Fix ownership of files created by container (they are root-owned).
             sudo chown "$(id -u):$(id -g)" "${BIN_NAME}" || true
