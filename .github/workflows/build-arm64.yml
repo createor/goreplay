@@ -1,4 +1,4 @@
-name: Build & Release Goreplay (full cgo arm64/amd64 with qemu)
+name: Build & Release Goreplay (containerized arm64 CGO build)
 
 on:
   push:
@@ -28,38 +28,33 @@ jobs:
         with:
           platforms: arm64
 
-      - name: Setup Go
+      - name: Setup Go (for host builds)
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
           cache: true
 
-      - name: Install build deps (libpcap + cross toolchain for arm64)
-        run: |
-          sudo apt-get update
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            # 启用 arm64 multi-arch 并安装 aarch64 的 libpcap 开发包与交叉工具链
-            sudo dpkg --add-architecture arm64
-            sudo apt-get update
-            sudo apt-get install -y libpcap-dev:arm64 crossbuild-essential-arm64 flex bison
-          else
-            sudo apt-get install -y libpcap-dev flex bison
-          fi
-
-      - name: Compile gor with CGO
+      - name: Compile gor with CGO (amd64 host or arm64 container)
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 1
         run: |
           BIN_NAME="gor-${{ matrix.goos }}-${{ matrix.arch }}"
-          # Use cross-compiler for arm64 builds so cgo assembles/links ARM code correctly
+
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            export CC=aarch64-linux-gnu-gcc
-            export CXX=aarch64-linux-gnu-g++
+            # Build inside an arm64 container (requires qemu/binfmt setup above).
+            # The container will have proper arm64 apt repos so libpcap-dev installs cleanly.
+            docker run --rm --platform linux/arm64 \
+              -v "${{ github.workspace }}":/work -w /work \
+              golang:1.21 bash -lc "\
+                apt-get update && \
+                apt-get install -y --no-install-recommends libpcap-dev flex bison && \
+                CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -v -ldflags '-s -w' -o /work/${BIN_NAME} ./cmd/gor"
+          else
+            # Native host build for amd64
+            go build -v -ldflags "-s -w" -o "${BIN_NAME}" ./cmd/gor
           fi
-          # Note: removed -extldflags '-static' to avoid cross static-link failures.
-          go build -v -ldflags "-s -w" -o "${BIN_NAME}" ./cmd/gor
 
       - name: Package tar.gz
         run: |
