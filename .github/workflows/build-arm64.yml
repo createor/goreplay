@@ -44,12 +44,14 @@ jobs:
 
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             # Build inside an arm64 golang image (qemu/binfmt must be set up above).
-            # The container has go and can apt-get the proper arm64 libpcap-dev package.
+            # Use an explicit distro tag so the arm64 variant reliably contains the go toolchain.
             docker run --rm --platform linux/arm64 \
               -v "${{ github.workspace }}":/work -w /work \
-              golang:1.21 bash -lc "\
+              golang:1.21-bullseye bash -lc "\
+                echo '=== container: checking go version ===' && go version || true && \
                 apt-get update && \
                 apt-get install -y --no-install-recommends libpcap-dev flex bison && \
+                echo '=== container: go version after setup ===' && go version && \
                 CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -v -ldflags '-s -w' -o /work/${BIN_NAME} ./cmd/gor"
             # Fix ownership of files created by container (they are root-owned).
             sudo chown "$(id -u):$(id -g)" "${BIN_NAME}" || true
