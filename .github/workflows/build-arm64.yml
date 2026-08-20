@@ -10,17 +10,17 @@ jobs:
     steps:
       # 升级 checkout 到 v4
       - name: Checkout code
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@v4
 
       # 升级 setup-go 到 v5 (内部已使用新版 cache)
       - name: Set up Go
-        uses: actions/setup-go@v7.0.0
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
 
       # 直接使用 cache action，并升级到 v4
       - name: Cache Go modules
-        uses: actions/cache@v5.1.0
+        uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
