@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         goos: [linux]
-        arch: [amd64, arm64]
+        arch: [arm64]
 
     steps:
       - name: Checkout source
@@ -34,7 +34,7 @@ jobs:
           go-version: "1.21"
           cache: true
 
-      - name: Compile gor with CGO (amd64 host or arm64 container)
+      - name: Compile gor with CGO (arm64 container)
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.arch }}
@@ -47,7 +47,7 @@ jobs:
             # Rely on the golang image providing the go toolchain for arm64.
             docker run --rm --platform linux/arm64 \
               -v "${{ github.workspace }}":/work -w /work \
-              golang:1.21-bullseye bash -lc '\
+              golang:1.21-bookworm bash -lc '\
                 set -ex; \
                 echo "=== container: go version ==="; \
                 go version; \
@@ -56,9 +56,6 @@ jobs:
                 CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -v -ldflags '\''-s -w'\'' -o /work/${BIN_NAME} ./cmd/gor'
             # Fix ownership of files created by container (they are root-owned).
             sudo chown "$(id -u):$(id -g)" "${BIN_NAME}" || true
-          else
-            # Native host build for amd64 (actions/setup-go installed go)
-            go build -v -ldflags "-s -w" -o "${BIN_NAME}" ./cmd/gor
           fi
 
       - name: Package tar.gz
