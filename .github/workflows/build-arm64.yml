@@ -20,7 +20,7 @@ jobs:
 
       # 直接使用 cache action，并升级到 v4
       - name: Cache Go modules
-        uses: actions/cache@v4
+        uses: actions/cache@v4.0.0
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
