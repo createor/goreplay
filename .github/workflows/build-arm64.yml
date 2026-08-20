@@ -18,57 +18,63 @@ jobs:
       matrix:
         goos: [linux]
         arch: [amd64, arm64]
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-
+    
       - name: Install QEMU for multi‑arch build
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
-
+    
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
           cache: true
-
-      - name: Install build deps libpcap
+    
+      - name: Install build deps (libpcap + cross toolchain for arm64)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpcap-dev flex bison
-
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y libpcap-dev flex bison crossbuild-essential-arm64
+          else
+            sudo apt-get install -y libpcap-dev flex bison
+          fi
+    
       - name: Compile gor with CGO
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 1
         run: |
-          BIN_NAME="gor‑${{ matrix.goos }}‑${{ matrix.arch }}"
-          go build -v \
-            -ldflags "-s -w -extldflags '-static'" \
-            -o "${BIN_NAME}" \
-            ./cmd/gor
-
+          BIN_NAME="gor-${{ matrix.goos }}-${{ matrix.arch }}"
+          # Use cross-compiler for arm64 builds so cgo assembles/links ARM code correctly
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+          fi
+          # Note: removed -extldflags '-static' to avoid cross static-link failures.
+          go build -v -ldflags "-s -w" -o "${BIN_NAME}" ./cmd/gor
+    
       - name: Package tar.gz
         run: |
-          BIN_NAME="gor‑${{ matrix.goos }}‑${{ matrix.arch }}"
+          BIN_NAME="gor-${{ matrix.goos }}-${{ matrix.arch }}"
           tar -zcvf "${BIN_NAME}.tar.gz" "${BIN_NAME}"
-
+    
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gor‑${{ matrix.goos }}‑${{ matrix.arch }}
+          name: gor-${{ matrix.goos }}-${{ matrix.arch }}
           path: |
-            gor‑${{ matrix.goos }}‑${{ matrix.arch }}
-            gor‑${{ matrix.goos }}‑${{ matrix.arch }}.tar.gz
-
+            gor-${{ matrix.goos }}-${{ matrix.arch }}
+            gor-${{ matrix.goos }}-${{ matrix.arch }}.tar.gz
+    
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: gor‑${{ matrix.goos }}‑${{ matrix.arch }}.tar.gz
+          files: gor-${{ matrix.goos }}-${{ matrix.arch }}.tar.gz
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
