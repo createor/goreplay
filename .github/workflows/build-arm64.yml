@@ -1,35 +1,33 @@
-name: Build GoReplay for Linux ARM64
+name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      # 升级 checkout 到 v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.21'   # 请根据项目 go.mod 实际版本调整
+      # 升级 setup-go 到 v5 (内部已使用新版 cache)
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libpcap-dev
+      # 直接使用 cache action，并升级到 v4
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-    - name: Build for Linux ARM64
-      run: |
-        make release-bin-linux-arm64
-
-    - name: Upload ARM64 binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: goreplay-linux-arm64
-        path: dist/gor_linux_arm64.tar.gz
+      - name: Build
+        run: go build ./...
