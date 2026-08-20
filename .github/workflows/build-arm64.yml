@@ -23,7 +23,6 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # 安装qemu，用于arm64 CGO跨编译，替代elastic私有docker镜像
       - name: Install QEMU for multi‑arch build
         uses: docker/setup-qemu-action@v3
         with:
@@ -32,27 +31,25 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21" # 匹配goreplay go.mod版本
+          go-version: "1.21"
           cache: true
 
-      # 安装libpcap编译依赖（CGO编译必须）
       - name: Install build deps libpcap
         run: |
           sudo apt-get update
           sudo apt-get install -y libpcap-dev flex bison
 
-      - name: Compile gor with CGO (full capture capability)
+      - name: Compile gor with CGO
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: 1
         run: |
           BIN_NAME="gor‑${{ matrix.goos }}‑${{ matrix.arch }}"
-          # 静态链接libpcap，保证产物不依赖系统库
           go build -v \
             -ldflags "-s -w -extldflags '-static'" \
             -o "${BIN_NAME}" \
-            ./cmd/goreplay
+            ./cmd/gor
 
       - name: Package tar.gz
         run: |
