@@ -53,7 +53,7 @@ jobs:
                 go version; \
                 apt-get update && apt-get install -y --no-install-recommends libpcap-dev flex bison ca-certificates; \
                 echo "=== container: building ==="; \
-                CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -v -ldflags '\''-s -w'\'' -o /work/${BIN_NAME} ./cmd/gor'
+                CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -buildvcs=false -v -ldflags '\''-s -w'\'' -o /work/${BIN_NAME} ./cmd/gor'
             # Fix ownership of files created by container (they are root-owned).
             sudo chown "$(id -u):$(id -g)" "${BIN_NAME}" || true
           fi
