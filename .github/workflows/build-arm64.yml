@@ -41,17 +41,20 @@ jobs:
           CGO_ENABLED: 1
         run: |
           BIN_NAME="gor-${{ matrix.goos }}-${{ matrix.arch }}"
-      
+
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            # 在 arm64 的 golang 镜像中构建：镜像自带 go，容器内 apt 能获取 arm64 的包
+            # Build inside an arm64 golang image (qemu/binfmt must be set up above).
+            # The container has go and can apt-get the proper arm64 libpcap-dev package.
             docker run --rm --platform linux/arm64 \
               -v "${{ github.workspace }}":/work -w /work \
               golang:1.21 bash -lc "\
                 apt-get update && \
                 apt-get install -y --no-install-recommends libpcap-dev flex bison && \
                 CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -v -ldflags '-s -w' -o /work/${BIN_NAME} ./cmd/gor"
+            # Fix ownership of files created by container (they are root-owned).
+            sudo chown "$(id -u):$(id -g)" "${BIN_NAME}" || true
           else
-            # 本机 amd64 构建（使用 actions/setup-go 提供的 go）
+            # Native host build for amd64 (actions/setup-go installed go)
             go build -v -ldflags "-s -w" -o "${BIN_NAME}" ./cmd/gor
           fi
 
